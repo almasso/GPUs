@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include "matrix_mul.h"
+#include <ctime>
 
 // Thread block size
-#define BLOCK_SIZE 16 
+#define BLOCK_SIZE 16
 
 // Forward declaration of the device multiplication function
+__global__ void Muld1Thread(float*, float*, int, int, int, float*);
 __global__ void Muld(float*, float*, int, int, float*);
 
 // Host multiplication function
@@ -22,11 +24,18 @@ void Mul___(float* A, float* B, int hA, int wA, int wB, float* C)
 	float* Ad;
 	size = hA * wA * sizeof(float);
 	cudaMalloc((void**)&Ad, size);
+	std::clock_t start = std::clock();
 	cudaMemcpy(Ad, A, size, cudaMemcpyHostToDevice);
+	std::clock_t end = std::clock();
+	double Ttx1 = ((double)(end - start)) / CLOCKS_PER_SEC;
+
 	float* Bd;
 	size = wA * wB * sizeof(float);
 	cudaMalloc((void**)&Bd, size);
+	start = std::clock();
 	cudaMemcpy(Bd, B, size, cudaMemcpyHostToDevice);
+	end = std::clock();
+	double Ttx2 = ((double)(end - start)) / CLOCKS_PER_SEC;
 
 	// Allocate C on the device
 	float* Cd;
@@ -35,14 +44,29 @@ void Mul___(float* A, float* B, int hA, int wA, int wB, float* C)
 
 	// Compute the execution configuration assuming
 	// the matrix dimensions are multiples of BLOCK_SIZE
-	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
-	dim3 dimGrid(wB / dimBlock.x, hA / dimBlock.y);
+	//dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
+	//dim3 dimGrid(wB / dimBlock.x, hA / dimBlock.y);
 
 	// Launch the device computation
-	Muld<<<dimGrid, dimBlock>>>(Ad, Bd, wA, wB, Cd);
+	//Muld<<<dimGrid, dimBlock>>>(Ad, Bd, wA, wB, Cd);
+	start = std::clock();
+	Muld1Thread<<<1, 1>>>(Ad, Bd, hA, wA, wB, Cd);
+	end = std::clock();
+	double Tkrnl = ((double)(end - start)) / CLOCKS_PER_SEC;
 
 	// Read C from the device
+	start = std::clock();
 	cudaMemcpy(C, Cd, size, cudaMemcpyDeviceToHost);
+	end = std::clock();
+	double Ttx3 = ((double)(end - start)) / CLOCKS_PER_SEC;
+
+	double BWtx1 = (hA * wA * sizeof(float)) / Ttx1;
+	double BWtx2 = (wA * wB * sizeof(float)) / Ttx2;
+	double Perfkrnl = (2 * hA * wA * wB) / Tkrnl;
+	double BWtx3 = (hA * wB * sizeof(float)) / Ttx3;
+
+	printf("%f; %f; %f; %f; %f; %f; %f; %f;", Ttx1, Ttx2, Tkrnl, Ttx3, BWtx1, BWtx2, Perfkrnl, BWtx3);
+	printf("\n");
 
 	// Free device memory
 	cudaFree(Ad);
@@ -50,9 +74,23 @@ void Mul___(float* A, float* B, int hA, int wA, int wB, float* C)
 	cudaFree(Cd);
 }
 
+__global__ void Muld1Thread(float* A, float* B, int hA, int wA, int wB, float* C)
+{
+    for (int i=0; i < hA; i++)
+		for (int j=0; j < wB; j++){
+			C[i*wB+j] = 0.0;
+			for (int k=0; k<wA; k++){
+				C[i*wB+j] += A[i*wA+k]*B[k*wB+j];
+			}
+		}
+}
+
 __global__ void Muld(float* A, float* B, int wA, int wB, float* C)
 {
-	//To Do
+    int row = threadIdx.y + blockIdx.y * blockDim.y;
+    int col = threadIdx.x + blockIdx.x * blockDim.x;
+    if(row < wA && col < wB)
+        //C[row * wB + col] =
 }
 
 #if 0
@@ -116,7 +154,7 @@ __global__ void Muld(float* A, float* B, int wA, int wB, float* C)
 		// sub-matrices of A and B in the next iteration
 		__syncthreads();
 	}
-	
+
 	// Write the block sub-matrix to global memory;
 	// each thread writes one element
 	...

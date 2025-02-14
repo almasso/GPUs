@@ -1,7 +1,7 @@
 CXX = g++
 CC = g++
-NVCC = nvcc
-#NVCC = /opt/nvidia/hpc_sdk/Linux_x86_64/2024/compilers/bin/nvcc
+#NVCC = nvcc
+NVCC = /opt/nvidia/hpc_sdk/Linux_x86_64/2024/compilers/bin/nvcc
 
 CFLAGS=-O3 -I. -I/usr/local/cuda/include
 CXXFLAGS=-O3 -I. -I/usr/local/cuda/include
@@ -14,7 +14,7 @@ SRC =  main.o matrix_mul.o
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 %.o: %.cu
-	$(NVCC) $(CFLAGS) -c -o $@ $<
+	$(NVCC) -allow-unsupported-compiler $(CFLAGS) -c -o $@ $<
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $<

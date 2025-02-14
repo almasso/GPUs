@@ -47,6 +47,7 @@ void Mul___(float* A, float* B, int hA, int wA, int wB, float* C)
 	Muld<<<1, 1>>>(Ad, Bd, hA, wA, wB, Cd);
 	start = std::clock();
 	Muld<<<1, 1>>>(Ad, Bd, hA, wA, wB, Cd);
+	cudaDeviceSynchronize();
 	end = std::clock();
 	double Tkrnl = ((double)(end - start)) / CLOCKS_PER_SEC;
 #endif
@@ -64,6 +65,7 @@ void Mul___(float* A, float* B, int hA, int wA, int wB, float* C)
 	Muld<<<dimGrid, dimBlock>>>(Ad, Bd, wA, wB, Cd);
 	start = std::clock();
 	Muld<<<dimGrid, dimBlock>>>(Ad, Bd, wA, wB, Cd);
+	cudaDeviceSynchronize();
 	end = std::clock();
 	double Tkrnl = ((double)(end - start)) / CLOCKS_PER_SEC;
 #endif

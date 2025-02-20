@@ -5,10 +5,10 @@
 // Thread block size
 #define BLOCK_SIZE 16
 
-#define MULTI_HILO
 // Forward declaration of the device multiplication function
 __global__ void Muld(float*, float*, int, int, int, float*);
 __global__ void Muld(float*, float*, int, int, float*);
+__global__ void EfficientMuld(float*, float*, int, int, float*);
 
 // Host multiplication function
 // Compute C = A * B
@@ -17,7 +17,7 @@ __global__ void Muld(float*, float*, int, int, float*);
 // wB is the width of B
 
 
-void Mul___(float* A, float* B, int hA, int wA, int wB, float* C)
+void Mul___(float* A, float* B, int hA, int wA, int wB, float* C, int mode)
 {
 	int size;
 
@@ -43,14 +43,6 @@ void Mul___(float* A, float* B, int hA, int wA, int wB, float* C)
 	size = hA * wB * sizeof(float);
 	cudaMalloc((void**)&Cd, size);
 
-#ifndef MULTI_HILO
-	Muld<<<1, 1>>>(Ad, Bd, hA, wA, wB, Cd);
-	start = std::clock();
-	Muld<<<1, 1>>>(Ad, Bd, hA, wA, wB, Cd);
-	cudaDeviceSynchronize();
-	end = std::clock();
-	double Tkrnl = ((double)(end - start)) / CLOCKS_PER_SEC;
-#endif
 
 	// Compute the execution configuration assuming
 	// the matrix dimensions are multiples of BLOCK_SIZE
@@ -60,15 +52,31 @@ void Mul___(float* A, float* B, int hA, int wA, int wB, float* C)
 	if(hA % dimBlock.y != 0) ySum = 1;
 	dim3 dimGrid((wB / dimBlock.x) + xSum, (hA / dimBlock.y) + ySum);
 
-	// Launch the device computation
-#ifdef MULTI_HILO
-	Muld<<<dimGrid, dimBlock>>>(Ad, Bd, wA, wB, Cd);
-	start = std::clock();
-	Muld<<<dimGrid, dimBlock>>>(Ad, Bd, wA, wB, Cd);
-	cudaDeviceSynchronize();
-	end = std::clock();
-	double Tkrnl = ((double)(end - start)) / CLOCKS_PER_SEC;
-#endif
+	double Tkrnl;
+	if(mode <= 0) {
+		Muld<<<1, 1>>>(Ad, Bd, hA, wA, wB, Cd);
+		start = std::clock();
+		Muld<<<1, 1>>>(Ad, Bd, hA, wA, wB, Cd);
+		cudaDeviceSynchronize();
+		end = std::clock();
+		Tkrnl = ((double)(end - start)) / CLOCKS_PER_SEC;
+	}
+	else if(mode == 1) {
+		Muld<<<dimGrid, dimBlock>>>(Ad, Bd, wA, wB, Cd);
+		start = std::clock();
+		Muld<<<dimGrid, dimBlock>>>(Ad, Bd, wA, wB, Cd);
+		cudaDeviceSynchronize();
+		end = std::clock();
+		Tkrnl = ((double)(end - start)) / CLOCKS_PER_SEC;
+	}
+	else if(mode >= 2) {
+		EfficientMuld<<<dimGrid, dimBlock>>>(Ad, Bd, wA, wB, Cd);
+		start = std::clock();
+		EfficientMuld<<<dimGrid, dimBlock>>>(Ad, Bd, wA, wB, Cd);
+		cudaDeviceSynchronize();
+		end = std::clock();
+		Tkrnl = ((double)(end - start)) / CLOCKS_PER_SEC;
+	}
 
 	// Read C from the device
 	start = std::clock();
@@ -78,12 +86,12 @@ void Mul___(float* A, float* B, int hA, int wA, int wB, float* C)
 
 	double BWtx1 = (hA * wA * sizeof(float) / 10e6) / Ttx1;
 	double BWtx2 = (wA * wB * sizeof(float) / 10e6) / Ttx2;
-	double Perfkrnl = (2 * hA * wA * wB / 10e6) / Tkrnl;
+	double Perfkrnl = (2 * hA * wA * wB / 10e9) / Tkrnl;
 	double BWtx3 = (hA * wB * sizeof(float) / 10e6) / Ttx3;
 
-	//printf("%s; %s; %s; %s; %s; %s; %s; %s;", "s", "s", "s", "s", "MB/s", "MB/s", "MFLOPS/s", "MB/s");
+	//printf("%s; %s; %s; %s; %s; %s; %s; %s;", "s", "s", "s", "s", "MB/s", "MB/s", "GFLOPS/s", "MB/s");
 	//printf("\n");
-	printf("%f,%f,%f,%f,%f,%f,%f,%f", Ttx1, Ttx2, Tkrnl, Ttx3, BWtx1, BWtx2, Perfkrnl, BWtx3);
+	printf("%d,%f,%f,%f,%f,%f,%f,%f,%f", hA, Ttx1, Ttx2, Tkrnl, Ttx3, BWtx1, BWtx2, Perfkrnl, BWtx3);
 	printf("\n");
 
 	// Free device memory
@@ -117,12 +125,12 @@ __global__ void Muld(float* A, float* B, int wA, int wB, float* C)
 	}
 }
 
-#if 0
+
 // Device multiplication function called by Mul()
 // Compute C = A * B
 // wA is the width of A
 // wB is the width of B
-__global__ void Muld(float* A, float* B, int wA, int wB, float* C)
+__global__ void EfficientMuld(float* A, float* B, int wA, int wB, float* C)
 {
 	// Block index
 	int bx = blockIdx.x;
@@ -133,10 +141,10 @@ __global__ void Muld(float* A, float* B, int wA, int wB, float* C)
 	int ty = threadIdx.y;
 
 	// Index of the first sub-matrix of A processed by the block
-	int aBegin = ...;
+	int aBegin = BLOCK_SIZE * by * wA;
 
 	// Index of the last sub-matrix of A processed by the block
-	int aEnd = ...;
+	int aEnd = aBegin + wA - BLOCK_SIZE;
 
 	// Step size used to iterate through the sub-matrices of A
 	int aStep = BLOCK_SIZE;
@@ -162,8 +170,8 @@ __global__ void Muld(float* A, float* B, int wA, int wB, float* C)
 
 		// Load the matrices from global memory to shared memory;
 		// each thread loads one element of each matrix
-		As[ty][tx] = A[...];
-		Bs[ty][tx] = B[...];
+		As[ty][tx] = A[a + tx];
+		Bs[ty][tx] = B[b + ty];
 		// Synchronize to make sure the matrices are loaded
 		__syncthreads();
 
@@ -183,4 +191,3 @@ __global__ void Muld(float* A, float* B, int wA, int wB, float* C)
 	// each thread writes one element
 	...
 }
-#endif

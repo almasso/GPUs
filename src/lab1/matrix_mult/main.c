@@ -66,18 +66,19 @@ int main(int argc, char** argv)
 	// Matrix variables
 	float *A, *B, *C;
 	int hA, wA, hB, wB;
-	int i;
+	int i, mode;
 
 	setbuf(stdout, NULL);
 
-	if (argc!=4){
-		printf("./exec hA hB/WA wB\n");
+	if (argc!=5){
+		printf("./exec hA hB/WA wB mode\n");
 		exit(-1);
 	}
 
 	hA = atoi(argv[1]);
 	hB = wA = atoi(argv[2]);
 	wB = atoi(argv[3]);
+	mode = atoi(argv[4]);
 
 	// Init A and B, malloc C
 	int size_A = wA * hA;
@@ -95,7 +96,7 @@ int main(int argc, char** argv)
 	}
 
 
-	Mul___(A, B, hA, wA, wB, C);
+	Mul___(A, B, hA, wA, wB, C, mode);
 	//printf("\n\nMATRIX A\n");print_matrix(A, hA, wA);
 	//printf("\n\nMATRIX B\n");print_matrix(B, hB, wB);
 	//printf("\n\nMATRIX C\n");print_matrix(C, hA, wB);

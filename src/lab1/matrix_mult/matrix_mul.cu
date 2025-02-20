@@ -83,7 +83,7 @@ void Mul___(float* A, float* B, int hA, int wA, int wB, float* C)
 
 	//printf("%s; %s; %s; %s; %s; %s; %s; %s;", "s", "s", "s", "s", "MB/s", "MB/s", "MFLOPS/s", "MB/s");
 	//printf("\n");
-	printf("%f;%f;%f;%f;%f;%f;%f;%f;", Ttx1, Ttx2, Tkrnl, Ttx3, BWtx1, BWtx2, Perfkrnl, BWtx3);
+	printf("%f,%f,%f,%f,%f,%f,%f,%f", Ttx1, Ttx2, Tkrnl, Ttx3, BWtx1, BWtx2, Perfkrnl, BWtx3);
 	printf("\n");
 
 	// Free device memory

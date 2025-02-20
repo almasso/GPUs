@@ -2,7 +2,7 @@
 
 rm values.csv
 make
-title="Ttx1;Ttx2;Tkrnl;Ttx3;BWtx1;BWtx2;BWkrnl;BWtx3;"
+title="Ttx1,Ttx2,Tkrnl,Ttx3,BWtx1,BWtx2,BWkrnl,BWtx3"
 echo "$title" >> values.csv
 for i in {1..16}
 do

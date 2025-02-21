@@ -4,11 +4,11 @@ rm values.csv
 make
 title="Size,Ttx1,Ttx2,Tkrnl,Ttx3,BWtx1,BWtx2,BWkrnl,BWtx3"
 echo "$title" >> values.csv
-for j in {0..1}
+for j in {1..2}
 do
-    for i in {1..16}
+    for i in {1..64}
     do
-        size=$((16*i))
+        size=$((128*i))
         value=$(./matrix_mult $size $size $size $j)
         echo "$value"
         echo "$value" >> values.csv

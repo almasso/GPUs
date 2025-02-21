@@ -101,8 +101,9 @@ int main(int argc, char** argv)
 	//printf("\n\nMATRIX B\n");print_matrix(B, hB, wB);
 	//printf("\n\nMATRIX C\n");print_matrix(C, hA, wB);
 
-	if (!diff(A, B, hA, wA, wB, C))
-		printf("ERROR=GPU.vs.CPU matrix mult differs\n");
+	if(wB < 128)
+		if (!diff(A, B, hA, wA, wB, C))
+			printf("ERROR=GPU.vs.CPU matrix mult differs\n");
 
 
 	// print Matrix

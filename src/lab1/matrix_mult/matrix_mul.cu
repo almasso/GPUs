@@ -86,7 +86,7 @@ void Mul___(float* A, float* B, int hA, int wA, int wB, float* C, int mode)
 
 	double BWtx1 = (hA * wA * sizeof(float) / 10e6) / Ttx1;
 	double BWtx2 = (wA * wB * sizeof(float) / 10e6) / Ttx2;
-	double Perfkrnl = (2 * hA * wA * wB / 10e9) / Tkrnl;
+	double Perfkrnl = (2 * hA * (double)wA * wB / 10e9) / Tkrnl;
 	double BWtx3 = (hA * wB * sizeof(float) / 10e6) / Ttx3;
 
 	//printf("%s; %s; %s; %s; %s; %s; %s; %s;", "s", "s", "s", "s", "MB/s", "MB/s", "GFLOPS", "MB/s");

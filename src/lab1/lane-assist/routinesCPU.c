@@ -17,8 +17,8 @@ void canny(uint8_t *im, uint8_t *image_out,
 
 	float lowthres, hithres;
 
-	for(i=2; i<height-2; i++)
-		for(j=2; j<width-2; j++)
+	for(i=2; i<height-2; i++) // Recorre filas
+		for(j=2; j<width-2; j++) // Recorre columnas
 		{
 			// Noise reduction
 			NR[i*width+j] =
@@ -264,6 +264,8 @@ void lane_assist_CPU(uint8_t *im, int height, int width,
 		NR, G, phi, Gx, Gy, pedge,
 		1000.0f, //level
 		height, width);
+
+	write_png_fileBW("out_edges.png", imEdge, width, height);
 
 	/* hough transform */
 	houghtransform(imEdge, width, height, accum, accu_width, accu_height, sin_table, cos_table);

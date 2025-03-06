@@ -103,15 +103,37 @@ __global__ void hysteresis(uint8_t* image_out, uint8_t* pedge, float* G, int wid
 			}
 }
 
-void canny(uint8_t *im, uint8_t *image_out,
-	float *NR, float *G, float *phi, float *Gx, float *Gy, uint8_t *pedge,
-	float level,
-	int height, int width) 
+void canny(uint8_t *im, uint8_t *image_out, int height, int width) 
 {
-	noiseReduction<<<1,1>>>(im, NR, width, height);
+	// Pasamos a memoria la imagen y un NR temporal
+	float* NR, *G, *Gx, *Gy, *phi;
+	uint8_t* imTmp, *pedge, *imageoutTmp;
+
+	cudaMalloc((void**)&NR, width * height * sizeof(float));
+	cudaMalloc((void**)&imTmp, width * height * sizeof(uint8_t));
+	cudaMemcpy(imTmp, im, width * height * sizeof(uint8_t), cudaMemcpyHostToDevice);
+	noiseReduction<<<1,1>>>(imTmp, NR, width, height);
+	cudaFree(imTmp);
+
+	cudaMalloc((void**)&G, width * height * sizeof(float));
+	cudaMalloc((void**)&Gx, width * height * sizeof(float));
+	cudaMalloc((void**)&Gy, width * height * sizeof(float));
+	cudaMalloc((void**)&phi, width * height * sizeof(float));
 	gradient<<<1,1>>>(G, Gx, Gy, NR, phi, width, height);
+	cudaFree(NR);
+	cudaFree(Gx);
+	cudaFree(Gy);
+
+	cudaMalloc((void**)&pedge, width * height * sizeof(uint8_t));
 	edgeDetection<<<1,1>>>(pedge, G, phi, width, height);
-	hysteresis<<<1,1>>>(image_out, pedge, G, width, height);
+	cudaFree(phi);
+
+	cudaMalloc((void**)imageoutTmp, width * height * sizeof(uint8_t));
+	hysteresis<<<1,1>>>(imageoutTmp, pedge, G, width, height);
+	cudaMemcpy(image_out, imageoutTmp, width * height * sizeof(uint8_t), cudaMemcpyDeviceToHost);
+	cudaFree(G);
+	cudaFree(pedge);
+	cudaFree(imageoutTmp);
 }
 
 void lane_assist_GPU(uint8_t *im, int height, int width,
@@ -120,7 +142,5 @@ void lane_assist_GPU(uint8_t *im, int height, int width,
 	uint32_t *accum, int accu_height, int accu_width,
 	int *x1, int *x2, int *y1, int *y2, int *nlines)
 {
-
-	int threshold;
-	
+	canny(im, imEdge, height, width);	
 }

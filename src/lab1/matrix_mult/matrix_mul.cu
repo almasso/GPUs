@@ -169,8 +169,8 @@ __global__ void EfficientMuld(float* A, float* B, int wA, int wB, float* C) {
 
 		// Load the matrices from global memory to shared memory;
 		// each thread loads one element of each matrix
-		As[ty][tx] = A[a + tx * wA + ty];
-		Bs[ty][tx] = B[b + tx * wB + ty];
+		As[ty][tx] = A[a + ty * wA + tx];
+		Bs[ty][tx] = B[b + ty * wB + tx];
 		// Synchronize to make sure the matrices are loaded
 		__syncthreads();
 
@@ -178,7 +178,7 @@ __global__ void EfficientMuld(float* A, float* B, int wA, int wB, float* C) {
 		// each thread computes one element
 		// of the block sub-matrix
 		for (int k = 0; k < BLOCK_SIZE; ++k)
-			Csub += As[tx][k] * Bs[k][ty];
+			Csub += As[ty][k] * Bs[k][tx];
 
 		// Synchronize to make sure that the preceding
 		// computation is done before loading two new
@@ -188,7 +188,7 @@ __global__ void EfficientMuld(float* A, float* B, int wA, int wB, float* C) {
 
 	// Write the block sub-matrix to global memory;
 	// each thread writes one element
-	int row = tx + bx * blockDim.x;
-    int col = ty + by * blockDim.y;
-	C[col * wB + row] = Csub;
+	int row = ty + by * BLOCK_SIZE;
+	int col = tx + bx * BLOCK_SIZE;
+	C[row * wB + col] = Csub;
 }

@@ -85,13 +85,13 @@ __global__ void transpose_device(float *in, float *out, int rows, int cols)
     j = blockIdx.y * blockDim.y + threadIdx.y;
     __shared__ float tmpMatrix[NTHREADS1D + 1][NTHREADS1D];   
 
-	if (i<rows && j < cols)
+	if (i<cols && j < rows)
         tmpMatrix[threadIdx.y][threadIdx.x] = in[j * cols + i];
 
 	iT = blockIdx.y * blockDim.y + threadIdx.x;
 	jT = blockIdx.x * blockDim.x + threadIdx.y;
     __syncthreads();
-    if (i<rows && j < cols)
+    if (i<cols && j < rows)
         out[jT * cols + iT] = tmpMatrix[threadIdx.x][threadIdx.y];
 
 }

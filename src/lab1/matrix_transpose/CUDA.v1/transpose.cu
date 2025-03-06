@@ -83,8 +83,8 @@ __global__ void transpose_device(float *in, float *out, int rows, int cols)
 	int i, j; 
 	i = blockIdx.x * blockDim.x + threadIdx.x; 
 
-	if (i<rows)
-		for ( j=0; j<cols; j++) 
+	if (i<cols)
+		for (j=0; j<rows; j++) 
 			out [ i * rows + j ] = in [ j * cols + i ]; 
 }
 

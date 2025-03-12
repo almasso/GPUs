@@ -77,7 +77,7 @@ int main(int argc, char **argv)
 			break;
 		case 'g':
 			t0 = get_time();
-			lane_assist_GPU(im, height, width,
+			lane_assist_GPU(im, height, width, imEdge, sin_table, cos_table, accum, accu_height, accu_width,
 				x1, y1, x2, y2, &nlines);
                         t1 = get_time();
 			printf("GPU Exection time %f ms.\n", t1-t0);

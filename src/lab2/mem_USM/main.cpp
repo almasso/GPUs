@@ -37,5 +37,7 @@ int main(int argc, char **argv) {
 	for(int i=0; i<N; i++)
 		std::cout << "a[" << i << "] = " << a[i] << std::endl;
 
+	free(a, Q);
+
   return 0;
 }

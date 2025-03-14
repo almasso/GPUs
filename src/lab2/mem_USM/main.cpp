@@ -19,7 +19,7 @@ int main(int argc, char **argv) {
 
 
 	// a in USM
-	float *a; // To fill with malloc_shared
+	float *a = malloc_shared<float>(N, Q);
 
 	// Parallel for
 	for(int i=0; i<N; i++)

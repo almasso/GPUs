@@ -1,13 +1,23 @@
 #!/bin/bash
 
 make
-title="ExecutionTimeCPU,ExecutionTimeGPUDefault"
-echo "$title" >> ./data/data.csv
-for j in {1..50}
+temp_file="./data/modified_data.csv"
+
+title="ExecutionTimeCPU,ExecutionTimeGPUDefault,ExecutionTimeGPUMultithread"
+echo "$title" > "$temp_file"
+
+while IFS=, read -r valueCPU valueGPU
 do
-    valueCPU=$(./image img0.png c t)
-    valueGPU=$(./image img0.png g t)
-    echo "$valueCPU"
-    echo "$valueGPU"
-    echo "$valueCPU,$valueGPU" >> ./data/data.csv
-done
+    if [[ "$valueCPU" == "ExecutionTimeCPU" ]];
+    then
+        continue
+    fi
+
+    new_value=$(./image img0.png g t)
+
+    echo "$new_value"
+
+    echo "$valueCPU,$valueGPU,$new_value" >> "$temp_file"
+done < ./data/data.csv
+
+mv "$temp_file" ./data/data.csv

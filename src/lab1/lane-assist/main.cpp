@@ -28,6 +28,7 @@ int main(int argc, char **argv)
 {
 	uint8_t *imtmp, *im;
 	int width, height;
+	bool verbose = true;
 
 	float sin_table[180], cos_table[180];
 	int nlines=0; 
@@ -37,10 +38,24 @@ int main(int argc, char **argv)
 
 
 	/* Only accept a concrete number of arguments */
-	if(argc != 3)
+	if(argc < 3 || argc > 4)
 	{
-		printf("./exec image.png [c/g]\n");
+		printf("./exec image.png [c/g] [t/v (def v)]\n");
 		exit(-1);
+	}
+
+	if(argc == 4) {
+		switch(argv[3][0]) {
+			case 't':
+				verbose = false;
+				break;
+			case 'v':
+				verbose = true;
+				break;
+			default:
+				verbose = true;
+				break;
+		}
 	}
 
 	/* Read images */
@@ -63,7 +78,7 @@ int main(int argc, char **argv)
 	int accu_height = hough_h * 2.0; // -rho -> +rho
 	int accu_width  = 180;
 	uint32_t *accum = (uint32_t*)malloc(accu_width*accu_height*sizeof(uint32_t));
-
+	
 	switch (argv[2][0]) {
 		case 'c':
 			t0 = get_time();
@@ -73,21 +88,29 @@ int main(int argc, char **argv)
 				accum, accu_height, accu_width,
 				x1, y1, x2, y2, &nlines);
 			t1 = get_time();
-			printf("CPU Exection time %f ms.\n", t1-t0);
+
+			if(verbose) 
+				printf("CPU Exection time %f ms.\n", t1-t0);
+			else
+				printf("%f\n", t1 - t0);
 			break;
 		case 'g':
 			t0 = get_time();
 			lane_assist_GPU(im, height, width, imEdge, sin_table, cos_table, accum, accu_height, accu_width,
 				x1, y1, x2, y2, &nlines);
                         t1 = get_time();
-			printf("GPU Exection time %f ms.\n", t1-t0);
+			if(verbose)
+				printf("GPU Exection time %f ms.\n", t1-t0);
+			else
+				printf("%f\n", t1 - t0);
 			break;
 		default:
 			printf("Not Implemented yet!!\n");
 	}
 
-	for (int l=0; l<nlines; l++)
-		printf("(x1,y1)=(%d,%d) (x2,y2)=(%d,%d)\n", x1[l], y1[l], x2[l], y2[l]);
+	if(verbose)
+		for (int l=0; l<nlines; l++)
+			printf("(x1,y1)=(%d,%d) (x2,y2)=(%d,%d)\n", x1[l], y1[l], x2[l], y2[l]);
 
 	draw_lines(imtmp, width, height, x1, y1, x2, y2, nlines);
 

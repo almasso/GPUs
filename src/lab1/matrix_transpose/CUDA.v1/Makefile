@@ -1,4 +1,5 @@
-CC = /opt/nvidia/hpc_sdk/Linux_x86_64/2024/compilers/bin/nvcc
+#CC = /opt/nvidia/hpc_sdk/Linux_x86_64/2024/compilers/bin/nvcc
+CC = /usr/local/cuda/bin/nvcc
 
 EXE   = transpose 
 
@@ -7,7 +8,7 @@ SOURCES    = transpose.cu
 
 OBJS    = $(SOURCES:.cu=.o)
 
-CFLAGS     = -O3  
+CFLAGS     = -O3  -std=c++17
 
 LIBS = -lm 
 

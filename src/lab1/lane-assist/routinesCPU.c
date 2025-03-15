@@ -94,14 +94,17 @@ void canny(uint8_t *im, uint8_t *image_out,
 		for(j=3; j<width-3; j++)
 		{
 			image_out[i*width+j] = 0;
-			if(G[i*width+j]>hithres && pedge[i*width+j])
+			if(G[i*width+j]>hithres && pedge[i*width+j]) {
 				image_out[i*width+j] = 255;
-			else if(pedge[i*width+j] && G[i*width+j]>=lowthres && G[i*width+j]<hithres)
+			}
+			else if(pedge[i*width+j] && G[i*width+j]>=lowthres && G[i*width+j]<hithres) {
 				// check neighbours 3x3
 				for (ii=-1;ii<=1; ii++)
-					for (jj=-1;jj<=1; jj++)
-						if (G[(i+ii)*width+j+jj]>hithres)
-							image_out[i*width+j] = 255;
+				for (jj=-1;jj<=1; jj++)
+					if (G[(i+ii)*width+j+jj]>hithres) {
+						image_out[i*width+j] = 255;
+					}
+			}
 		}
 }
 

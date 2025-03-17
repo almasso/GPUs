@@ -24,15 +24,12 @@ __global__ void noiseReduction(uint8_t* im, float* NR, int width, int height) {
 	/159.0;
 }
 
-__global__ void gradient(float* G, float* Gx, float* Gy, float* NR, float* phi, int width, int height) {
+__global__ void gradientX(float* Gx, float* NR, int width, int height) {
 	int i = threadIdx.y + blockIdx.y * blockDim.y;
 	int j = threadIdx.x + blockIdx.x * blockDim.x;
 
 	if((i < 2 || i > height - 3) || (j < 2 || j > width - 3)) return;
 
-	float PI = 3.141593;
-	
-	// Intensity gradient of the image
 	Gx[i*width+j] = 
 		(1.0*NR[(i-2)*width+(j-2)] +  2.0*NR[(i-2)*width+(j-1)] +  (-2.0)*NR[(i-2)*width+(j+1)] + (-1.0)*NR[(i-2)*width+(j+2)]
 		+ 4.0*NR[(i-1)*width+(j-2)] +  8.0*NR[(i-1)*width+(j-1)] +  (-8.0)*NR[(i-1)*width+(j+1)] + (-4.0)*NR[(i-1)*width+(j+2)]
@@ -40,12 +37,28 @@ __global__ void gradient(float* G, float* Gx, float* Gy, float* NR, float* phi, 
 		+ 4.0*NR[(i+1)*width+(j-2)] +  8.0*NR[(i+1)*width+(j-1)] +  (-8.0)*NR[(i+1)*width+(j+1)] + (-4.0)*NR[(i+1)*width+(j+2)]
 		+ 1.0*NR[(i+2)*width+(j-2)] +  2.0*NR[(i+2)*width+(j-1)] +  (-2.0)*NR[(i+2)*width+(j+1)] + (-1.0)*NR[(i+2)*width+(j+2)]);
 
+}
+
+__global__ void gradientY(float* Gy, float* NR, int width, int height) {
+	int i = threadIdx.y + blockIdx.y * blockDim.y;
+	int j = threadIdx.x + blockIdx.x * blockDim.x;
+
+	if((i < 2 || i > height - 3) || (j < 2 || j > width - 3)) return;
 
 	Gy[i*width+j] = 
 		((-1.0)*NR[(i-2)*width+(j-2)] + (-4.0)*NR[(i-2)*width+(j-1)] +  (-6.0)*NR[(i-2)*width+(j)] + (-4.0)*NR[(i-2)*width+(j+1)] + (-1.0)*NR[(i-2)*width+(j+2)]
 		+ (-2.0)*NR[(i-1)*width+(j-2)] + (-8.0)*NR[(i-1)*width+(j-1)] + (-12.0)*NR[(i-1)*width+(j)] + (-8.0)*NR[(i-1)*width+(j+1)] + (-2.0)*NR[(i-1)*width+(j+2)]
 		+    2.0*NR[(i+1)*width+(j-2)] +    8.0*NR[(i+1)*width+(j-1)] +    12.0*NR[(i+1)*width+(j)] +    8.0*NR[(i+1)*width+(j+1)] +    2.0*NR[(i+1)*width+(j+2)]
 		+    1.0*NR[(i+2)*width+(j-2)] +    4.0*NR[(i+2)*width+(j-1)] +     6.0*NR[(i+2)*width+(j)] +    4.0*NR[(i+2)*width+(j+1)] +    1.0*NR[(i+2)*width+(j+2)]);
+}
+
+__global__ void gradient(float* G, float* Gx, float* Gy, float* NR, float* phi, int width, int height) {
+	int i = threadIdx.y + blockIdx.y * blockDim.y;
+	int j = threadIdx.x + blockIdx.x * blockDim.x;
+
+	if((i < 2 || i > height - 3) || (j < 2 || j > width - 3)) return;
+
+	float PI = 3.141593;
 
 	G[i*width+j]   = sqrtf((Gx[i*width+j]*Gx[i*width+j])+(Gy[i*width+j]*Gy[i*width+j]));	//G = √Gx²+Gy²
 	phi[i*width+j] = atan2f(fabs(Gy[i*width+j]),fabs(Gx[i*width+j]));
@@ -197,8 +210,6 @@ __global__ void getLinesKernel(int threshold, uint32_t* accumulators, int accu_w
 			atomicAdd(lines, 1);
 		}
 	}
-		
-	
 }
 
 void canny(uint8_t *im, uint8_t *image_out, int height, int width, float level) 
@@ -221,11 +232,21 @@ void canny(uint8_t *im, uint8_t *image_out, int height, int width, float level)
 	// En cuanto dejemos de usar la imagen, la liberamos de memoria
 	cudaFree(imTmp);
 
+	cudaStream_t gradientStream[2];
+	for(int i = 0; i < 2; ++i)
+		cudaStreamCreate(&gradientStream[i]);
+	
 	// Reservamos memoria para el resto de variables que vamos a utilizar
 	cudaMalloc((void**)&G, width * height * sizeof(float));
 	cudaMalloc((void**)&Gx, width * height * sizeof(float));
 	cudaMalloc((void**)&Gy, width * height * sizeof(float));
 	cudaMalloc((void**)&phi, width * height * sizeof(float));
+	gradientX<<<dimGrid, dimBlock, gradientStream[0]>>>(Gx, NR, width, height);
+	gradientY<<<dimGrid, dimBlock, gradientStream[1]>>>(Gy, NR, width, height);
+	cudaDeviceSynchronize();
+	
+	for(int i = 0; i < 2; ++i) 
+		cudaStreamDestroy(&gradientStream[i]);
 	gradient<<<dimGrid,dimBlock>>>(G, Gx, Gy, NR, phi, width, height);
 	cudaDeviceSynchronize();
 	// Liberamos las que ya no vayamos a utilizar

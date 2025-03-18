@@ -15,7 +15,7 @@ __global__ void noiseReduction(uint8_t* im, float* NR, int width, int height) {
 
 	if(i >= height || j >= width) return;
 
-	__shared__ float sNR[BLOCK_SIZE + 4][BLOCK_SIZE + 4];
+	__shared__ float sNR[BLOCK_SIZE + 4][BLOCK_SIZE + 4 + 2];
 
 	sNR[ty + 2][tx + 2] = im[i * width + j];
 
@@ -120,17 +120,17 @@ __global__ void phiKernel(float* phi, float* Gx, float* Gy, int width, int heigh
 
 	float PI = 3.141593;
 	
+	float gx = Gx[i * width + j];
+	float gy = Gy[i * width + j];
 	phi[i*width+j] = atan2f(fabs(Gy[i*width+j]),fabs(Gx[i*width+j]));
 
-	if(fabs(phi[i*width+j])<=PI/8 )
-		phi[i*width+j] = 0;
-	else if (fabs(phi[i*width+j])<= 3*(PI/8))
-		phi[i*width+j] = 45;
-	else if (fabs(phi[i*width+j]) <= 5*(PI/8))
-		phi[i*width+j] = 90;
-	else if (fabs(phi[i*width+j]) <= 7*(PI/8))
-		phi[i*width+j] = 135;
-	else phi[i*width+j] = 0;
+	float angle = atan2f(fabsf(gy), fabsf(gx));
+
+	phi[i * width + j] = ((angle <= PI/8) ? 0 :
+						  (angle <= 3 * PI/8) ? 45 :
+						  (angle <= 5 * PI/8) ? 90 :
+						  (angle <= 7 * PI/8) ? 135 : 0);
+
 }
 
 __global__ void edgeDetection(uint8_t* pedge, float* G, float* phi, int width, int height) {
@@ -139,22 +139,13 @@ __global__ void edgeDetection(uint8_t* pedge, float* G, float* phi, int width, i
 
 	if((i < 3 || i > height - 4) || (j < 3 || j > width - 4)) return;
 
-	if(phi[i*width+j] == 0) {
-		if(G[i*width+j]>G[i*width+j+1] && G[i*width+j]>G[i*width+j-1]) //edge is in N-S
-			pedge[i*width+j] = 1;
-	} else if(phi[i*width+j] == 45) {
-		if(G[i*width+j]>G[(i+1)*width+j+1] && G[i*width+j]>G[(i-1)*width+j-1]) // edge is in NW-SE
-			pedge[i*width+j] = 1;
-
-	} else if(phi[i*width+j] == 90) {
-		if(G[i*width+j]>G[(i+1)*width+j] && G[i*width+j]>G[(i-1)*width+j]) //edge is in E-W
-			pedge[i*width+j] = 1;
-
-	} else if(phi[i*width+j] == 135) {
-		if(G[i*width+j]>G[(i+1)*width+j-1] && G[i*width+j]>G[(i-1)*width+j+1]) // edge is in NE-SW
-			pedge[i*width+j] = 1;
-	}
-	
+	float g_val = G[i * width + j];
+    float phi_val = phi[i * width + j];
+    
+    pedge[i * width + j] = (phi_val == 0 && g_val > G[i * width + j + 1] && g_val > G[i * width + j - 1]) ||
+                           (phi_val == 45 && g_val > G[(i + 1) * width + j + 1] && g_val > G[(i - 1) * width + j - 1]) ||
+                           (phi_val == 90 && g_val > G[(i + 1) * width + j] && g_val > G[(i - 1) * width + j]) ||
+                           (phi_val == 135 && g_val > G[(i + 1) * width + j - 1] && g_val > G[(i - 1) * width + j + 1]);
 }
 
 __global__ void hysteresis(uint8_t* image_out, uint8_t* pedge, float* G, int width, int height, float level) {
@@ -162,19 +153,24 @@ __global__ void hysteresis(uint8_t* image_out, uint8_t* pedge, float* G, int wid
 	int j = threadIdx.x + blockIdx.x * blockDim.x;
 	
 	if((i < 3 || i > height - 4) || (j < 3 || j > width - 4)) return;
-	
-	int ii, jj;
-	float lowthres = level/2, hithres = 2 *(level);
 
-	if(G[i*width+j]>hithres && pedge[i*width+j]) {
-		image_out[i*width+j] = 255;
+	float lowthres = level/2, hithres = 2 *(level);
+	float gVal = G[i * width + j];
+
+	bool strCandidate = (gVal > hithres) && pedge[i * width + j];
+	bool weakCandidate = (gVal >= lowthres && gVal < hithres && pedge[i * width + j]);
+
+	if(strCandidate) {
+		image_out[i * width + j] = 255;
 	}
-	else if(pedge[i*width+j] && G[i*width+j]>=lowthres && G[i*width+j]<hithres) {
+
+	else if(weakCandidate) {
 		// check neighbours 3x3
-		for (ii=-1;ii<=1; ii++)
-			for (jj=-1;jj<=1; jj++)
+		for (int ii=-1;ii<=1; ii++)
+			for (int jj=-1;jj<=1; jj++)
 				if (G[(i+ii)*width+j+jj]>hithres) {
 					image_out[i*width+j] = 255;
+					return;
 				}
 	}
 	
@@ -188,20 +184,17 @@ __global__ void houghKernel(uint8_t* im, uint32_t* accumulators, int width, int 
 	int i = threadIdx.y + blockIdx.y * blockDim.y;
 	int j = threadIdx.x + blockIdx.x * blockDim.x;
 
-	if(i >= height || j >= width) return;
+	if(i >= height || j >= width || im[i * width + j] <= 250) return;
 
-	float hough_h = ((sqrt(2.0) * (float)(height>width?height:width)) / 2.0);
+	float hough_h = ((sqrtf(2.0) * (float)(height>width?height:width)) / 2.0);
 
 	float center_x = width/2.0; 
 	float center_y = height/2.0;
 
-	if( im[ (i*width) + j] > 250 ) { // Pixel is edge
-		for(theta=0;theta<180;theta++) {  
-			float rho = ( ((float)j - center_x) * cos_table[theta]) + (((float)i - center_y) * sin_table[theta]);
-			atomicAdd(&accumulators[(int)((round(rho + hough_h) * 180.0)) + theta], 1);
-		} 
+	for(theta=0;theta<180;theta++) {  
+		float rho = ( ((float)j - center_x) * cos_table[theta]) + (((float)i - center_y) * sin_table[theta]);
+		atomicAdd(&accumulators[(int)((round(rho + hough_h) * 180.0)) + theta], 1);
 	} 
-	
 }
 
 __global__ void getLinesKernel(int threshold, uint32_t* accumulators, int accu_width, int accu_height, int width, int height, 
@@ -270,11 +263,10 @@ void canny(uint8_t *im, uint8_t *image_out, int height, int width, float level)
 	// En cuanto dejemos de usar la imagen, la liberamos de memoria
 	cudaFree(imTmp);
 
-	cudaStream_t streams[2];
-	for(int i = 0; i < 2; ++i)
+	int nStreams = 2;
+	cudaStream_t streams[nStreams];
+	for(int i = 0; i < nStreams; ++i)
 		cudaStreamCreate(&streams[i]);
-	
-	dim3 multipleStreamsDimGrid(dimGrid.x/2, dimGrid.y/2);
 	
 	// Reservamos memoria para el resto de variables que vamos a utilizar
 	cudaMalloc((void**)&G, width * height * sizeof(float));
@@ -283,16 +275,18 @@ void canny(uint8_t *im, uint8_t *image_out, int height, int width, float level)
 	cudaMalloc((void**)&phi, width * height * sizeof(float));
 	gradientX<<<dimGrid, dimBlock, 0, streams[0]>>>(Gx, NR, width, height);
 	gradientY<<<dimGrid, dimBlock, 0, streams[1]>>>(Gy, NR, width, height);
-	cudaStreamSynchronize(streams[0]);
-	cudaStreamSynchronize(streams[1]);
+	for(int i = 0; i < nStreams; ++i) {
+		cudaStreamSynchronize(streams[i]);
+	}
 	
 	gradient<<<dimGrid, dimBlock, 0, streams[0]>>>(G, Gx, Gy, width, height);
 	phiKernel<<<dimGrid, dimBlock, 0, streams[1]>>>(phi, Gx, Gy, width, height);
-	cudaStreamSynchronize(streams[0]);
-	cudaStreamSynchronize(streams[1]);
+	for(int i = 0; i < nStreams; ++i) {
+		cudaStreamSynchronize(streams[i]);
+	}
 	
 	// Liberamos las que ya no vayamos a utilizar
-	for(int i = 0; i < 2; ++i) 
+	for(int i = 0; i < nStreams; ++i) 
 		cudaStreamDestroy(streams[i]);
 	cudaFree(NR);
 	cudaFree(Gx);

@@ -9,9 +9,9 @@ CXX_OPENCV_FLAGS+=`pkg-config opencv --cflags`
 LD_OPENCV_FLAGS+=`pkg-config opencv --libs`
 
 
-CFLAGS=-O3 -g -I.
-CUDAFLAGS =-G -g -O3 -I. 
-CXXFLAGS=-O3 -g -I.
+CFLAGS=-O3 -I.
+CUDAFLAGS =-O3 -I. 
+CXXFLAGS=-O3 -I.
 
 LIBS =-lpng -lm -L/usr/local/cuda/lib64 -lcudart
 

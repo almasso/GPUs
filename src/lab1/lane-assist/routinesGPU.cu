@@ -9,58 +9,117 @@
 #define BLOCK_SIZE 32
 
 __global__ void noiseReduction(uint8_t* im, float* NR, int width, int height) {
-	int i = threadIdx.y + blockIdx.y * blockDim.y;
-	int j = threadIdx.x + blockIdx.x * blockDim.x;
+	int tx = threadIdx.x, ty = threadIdx.y;
+	int i = ty + blockIdx.y * blockDim.y;
+	int j = tx + blockIdx.x * blockDim.x;
 
-	if((i < 2 || i > height - 3) || (j < 2 || j > width - 3)) return;
+	if(i >= height || j >= width) return;
+
+	__shared__ float sNR[BLOCK_SIZE + 4][BLOCK_SIZE + 4];
+
+	sNR[ty + 2][tx + 2] = im[i * width + j];
+
+	if(ty < 2) {
+		sNR[ty][tx + 2] = im[(i - 2) * width + j];
+		sNR[ty + BLOCK_SIZE + 2][tx + 2] = im[(i + BLOCK_SIZE) * width + j];
+	}
+	if(tx < 2) {
+		sNR[ty+ 2][tx] = im[i * width + (j - 2)];
+		sNR[ty+ 2][tx + BLOCK_SIZE + 2] = im[i * width + (j + BLOCK_SIZE)];
+	}
+	__syncthreads();
 
 	// Noise reduction
-	NR[i*width+j] =
-	(2.0*im[(i-2)*width+(j-2)] +  4.0*im[(i-2)*width+(j-1)] +  5.0*im[(i-2)*width+(j)] +  4.0*im[(i-2)*width+(j+1)] + 2.0*im[(i-2)*width+(j+2)]
-	+ 4.0*im[(i-1)*width+(j-2)] +  9.0*im[(i-1)*width+(j-1)] + 12.0*im[(i-1)*width+(j)] +  9.0*im[(i-1)*width+(j+1)] + 4.0*im[(i-1)*width+(j+2)]
-	+ 5.0*im[(i  )*width+(j-2)] + 12.0*im[(i  )*width+(j-1)] + 15.0*im[(i  )*width+(j)] + 12.0*im[(i  )*width+(j+1)] + 5.0*im[(i  )*width+(j+2)]
-	+ 4.0*im[(i+1)*width+(j-2)] +  9.0*im[(i+1)*width+(j-1)] + 12.0*im[(i+1)*width+(j)] +  9.0*im[(i+1)*width+(j+1)] + 4.0*im[(i+1)*width+(j+2)]
-	+ 2.0*im[(i+2)*width+(j-2)] +  4.0*im[(i+2)*width+(j-1)] +  5.0*im[(i+2)*width+(j)] +  4.0*im[(i+2)*width+(j+1)] + 2.0*im[(i+2)*width+(j+2)])
+	float res = (
+	  2.0*sNR[ty][tx]     +  4.0*sNR[ty][tx + 1]     +   5.0*sNR[ty][tx + 2]     +  4.0*sNR[ty][tx + 3]     +  2.0*sNR[ty][tx + 4]
+	+ 4.0*sNR[ty + 1][tx] +  9.0*sNR[ty + 1][tx + 1] +  12.0*sNR[ty + 1][tx + 2] +  9.0*sNR[ty + 1][tx + 3] +  4.0*sNR[ty + 1][tx + 4]
+	+ 5.0*sNR[ty + 2][tx] + 12.0*sNR[ty + 2][tx + 1] +  15.0*sNR[ty + 2][tx + 2] + 12.0*sNR[ty + 2][tx + 3] +  5.0*sNR[ty + 2][tx + 4]
+	+ 4.0*sNR[ty + 3][tx] +  9.0*sNR[ty + 3][tx + 1] +  12.0*sNR[ty + 3][tx + 2] +  9.0*sNR[ty + 3][tx + 3] +  4.0*sNR[ty + 3][tx + 4]
+	+ 2.0*sNR[ty + 4][tx] +  4.0*sNR[ty + 4][tx + 1] +   5.0*sNR[ty + 4][tx + 2] +  4.0*sNR[ty + 4][tx + 3] +  2.0*sNR[ty + 4][tx + 4])
 	/159.0;
+
+	NR[i * width + j] = res;
 }
 
 __global__ void gradientX(float* Gx, float* NR, int width, int height) {
-	int i = threadIdx.y + blockIdx.y * blockDim.y;
-	int j = threadIdx.x + blockIdx.x * blockDim.x;
+	int tx = threadIdx.x, ty = threadIdx.y;
+	int i = ty + blockIdx.y * blockDim.y;
+	int j = tx + blockIdx.x * blockDim.x;
 
-	if((i < 2 || i > height - 3) || (j < 2 || j > width - 3)) return;
+	if(i >= height || j >= width) return;
 
-	Gx[i*width+j] = 
-		(1.0*NR[(i-2)*width+(j-2)] +  2.0*NR[(i-2)*width+(j-1)] +  (-2.0)*NR[(i-2)*width+(j+1)] + (-1.0)*NR[(i-2)*width+(j+2)]
-		+ 4.0*NR[(i-1)*width+(j-2)] +  8.0*NR[(i-1)*width+(j-1)] +  (-8.0)*NR[(i-1)*width+(j+1)] + (-4.0)*NR[(i-1)*width+(j+2)]
-		+ 6.0*NR[(i  )*width+(j-2)] + 12.0*NR[(i  )*width+(j-1)] + (-12.0)*NR[(i  )*width+(j+1)] + (-6.0)*NR[(i  )*width+(j+2)]
-		+ 4.0*NR[(i+1)*width+(j-2)] +  8.0*NR[(i+1)*width+(j-1)] +  (-8.0)*NR[(i+1)*width+(j+1)] + (-4.0)*NR[(i+1)*width+(j+2)]
-		+ 1.0*NR[(i+2)*width+(j-2)] +  2.0*NR[(i+2)*width+(j-1)] +  (-2.0)*NR[(i+2)*width+(j+1)] + (-1.0)*NR[(i+2)*width+(j+2)]);
+	__shared__ float sGx[BLOCK_SIZE + 4][BLOCK_SIZE + 4];
 
+	sGx[ty + 2][tx + 2] = NR[i * width + j];
+
+	if(ty < 2) {
+		sGx[ty][tx + 2] = NR[(i - 2) * width + j];
+		sGx[ty + BLOCK_SIZE + 2][tx + 2] = NR[(i + BLOCK_SIZE) * width + j];
+	}
+	if(tx < 2) {
+		sGx[ty+ 2][tx] = NR[i * width + (j - 2)];
+		sGx[ty+ 2][tx + BLOCK_SIZE + 2] = NR[i * width + (j + BLOCK_SIZE)];
+	}
+	__syncthreads();
+
+	float res = (
+		  1.0*sGx[ty][tx]     +  2.0*sGx[ty][tx + 1]     +  (-2.0)*sGx[ty][tx + 3]     + (-1.0)*sGx[ty][tx + 4] 
+		+ 4.0*sGx[ty + 1][tx] +  8.0*sGx[ty + 1][tx + 1] +  (-8.0)*sGx[ty + 1][tx + 3] + (-4.0)*sGx[ty + 1][tx + 4]
+		+ 6.0*sGx[ty + 2][tx] + 12.0*sGx[ty + 2][tx + 1] + (-12.0)*sGx[ty + 2][tx + 3] + (-6.0)*sGx[ty + 2][tx + 4]
+		+ 4.0*sGx[ty + 3][tx] +  8.0*sGx[ty + 3][tx + 1] +  (-8.0)*sGx[ty + 3][tx + 3] + (-4.0)*sGx[ty + 3][tx + 4]
+		+ 1.0*sGx[ty + 4][tx] +  2.0*sGx[ty + 4][tx + 1] +  (-2.0)*sGx[ty + 4][tx + 3] + (-1.0)*sGx[ty + 4][tx + 4]);
+	
+	Gx[i*width+j] = res;
 }
 
 __global__ void gradientY(float* Gy, float* NR, int width, int height) {
-	int i = threadIdx.y + blockIdx.y * blockDim.y;
-	int j = threadIdx.x + blockIdx.x * blockDim.x;
+	int tx = threadIdx.x, ty = threadIdx.y;
+	int i = ty + blockIdx.y * blockDim.y;
+	int j = tx + blockIdx.x * blockDim.x;
 
-	if((i < 2 || i > height - 3) || (j < 2 || j > width - 3)) return;
+	if(i >= height || j >= width) return;
 
-	Gy[i*width+j] = 
-		((-1.0)*NR[(i-2)*width+(j-2)] + (-4.0)*NR[(i-2)*width+(j-1)] +  (-6.0)*NR[(i-2)*width+(j)] + (-4.0)*NR[(i-2)*width+(j+1)] + (-1.0)*NR[(i-2)*width+(j+2)]
-		+ (-2.0)*NR[(i-1)*width+(j-2)] + (-8.0)*NR[(i-1)*width+(j-1)] + (-12.0)*NR[(i-1)*width+(j)] + (-8.0)*NR[(i-1)*width+(j+1)] + (-2.0)*NR[(i-1)*width+(j+2)]
-		+    2.0*NR[(i+1)*width+(j-2)] +    8.0*NR[(i+1)*width+(j-1)] +    12.0*NR[(i+1)*width+(j)] +    8.0*NR[(i+1)*width+(j+1)] +    2.0*NR[(i+1)*width+(j+2)]
-		+    1.0*NR[(i+2)*width+(j-2)] +    4.0*NR[(i+2)*width+(j-1)] +     6.0*NR[(i+2)*width+(j)] +    4.0*NR[(i+2)*width+(j+1)] +    1.0*NR[(i+2)*width+(j+2)]);
+	__shared__ float sGy[BLOCK_SIZE + 4][BLOCK_SIZE + 4];
+
+	sGy[ty + 2][tx + 2] = NR[i * width + j];
+
+	if(ty < 2) {
+		sGy[ty][tx + 2] = NR[(i - 2) * width + j];
+		sGy[ty + BLOCK_SIZE + 2][tx + 2] = NR[(i + BLOCK_SIZE) * width + j];
+	}
+	if(tx < 2) {
+		sGy[ty+ 2][tx] = NR[i * width + (j - 2)];
+		sGy[ty+ 2][tx + BLOCK_SIZE + 2] = NR[i * width + (j + BLOCK_SIZE)];
+	}
+	__syncthreads();
+
+	float res = (
+		  (-1.0)*sGy[ty][tx]     + (-4.0)*sGy[ty][tx + 1]     +  (-6.0)*sGy[ty][tx + 2]     + (-4.0)*sGy[ty][tx + 3]     + (-1.0)*sGy[ty][tx + 4]
+		+ (-2.0)*sGy[ty + 1][tx] + (-8.0)*sGy[ty + 1][tx + 1] + (-12.0)*sGy[ty + 1][tx + 2] + (-8.0)*sGy[ty + 1][tx + 3] + (-2.0)*sGy[ty + 1][tx + 4]
+		+    2.0*sGy[ty + 3][tx] +   8.0*sGy[ty + 3][tx + 1]  +   12.0*sGy[ty + 3][tx + 2]  +   8.0*sGy[ty + 3][tx + 3]  +   2.0*sGy[ty + 3][tx + 4]
+		+    1.0*sGy[ty + 4][tx] +   4.0*sGy[ty + 4][tx + 1]  +    6.0*sGy[ty + 4][tx + 2]  +   4.0*sGy[ty + 4][tx + 3]  +   1.0*sGy[ty + 4][tx + 4]);
+
+	Gy[i*width+j] = res;
 }
 
-__global__ void gradient(float* G, float* Gx, float* Gy, float* NR, float* phi, int width, int height) {
+__global__ void gradient(float* G, float* Gx, float* Gy, int width, int height) {
+	int tx = threadIdx.x, ty = threadIdx.y;
+	int i = ty + blockIdx.y * blockDim.y;
+	int j = tx + blockIdx.x * blockDim.x;
+
+	if(i >= height || j >= width) return;
+
+	G[i*width+j] = sqrtf((Gx[i*width+j]*Gx[i*width+j])+(Gy[i*width+j]*Gy[i*width+j]));	//G = √Gx²+Gy²
+}
+
+__global__ void phiKernel(float* phi, float* Gx, float* Gy, int width, int height) {
 	int i = threadIdx.y + blockIdx.y * blockDim.y;
 	int j = threadIdx.x + blockIdx.x * blockDim.x;
 
 	if((i < 2 || i > height - 3) || (j < 2 || j > width - 3)) return;
 
 	float PI = 3.141593;
-
-	G[i*width+j]   = sqrtf((Gx[i*width+j]*Gx[i*width+j])+(Gy[i*width+j]*Gy[i*width+j]));	//G = √Gx²+Gy²
+	
 	phi[i*width+j] = atan2f(fabs(Gy[i*width+j]),fabs(Gx[i*width+j]));
 
 	if(fabs(phi[i*width+j])<=PI/8 )
@@ -72,7 +131,6 @@ __global__ void gradient(float* G, float* Gx, float* Gy, float* NR, float* phi, 
 	else if (fabs(phi[i*width+j]) <= 7*(PI/8))
 		phi[i*width+j] = 135;
 	else phi[i*width+j] = 0;
-	
 }
 
 __global__ void edgeDetection(uint8_t* pedge, float* G, float* phi, int width, int height) {
@@ -137,10 +195,8 @@ __global__ void houghKernel(uint8_t* im, uint32_t* accumulators, int width, int 
 	float center_x = width/2.0; 
 	float center_y = height/2.0;
 
-	if( im[ (i*width) + j] > 250 ) // Pixel is edge  
-	{  
-		for(theta=0;theta<180;theta++)  
-		{  
+	if( im[ (i*width) + j] > 250 ) { // Pixel is edge
+		for(theta=0;theta<180;theta++) {  
 			float rho = ( ((float)j - center_x) * cos_table[theta]) + (((float)i - center_y) * sin_table[theta]);
 			atomicAdd(&accumulators[(int)((round(rho + hough_h) * 180.0)) + theta], 1);
 		} 
@@ -151,65 +207,47 @@ __global__ void houghKernel(uint8_t* im, uint32_t* accumulators, int width, int 
 __global__ void getLinesKernel(int threshold, uint32_t* accumulators, int accu_width, int accu_height, int width, int height, 
 	float* sin_table, float* cos_table, int* x1_lines, int* y1_lines, int* x2_lines, int* y2_lines, int* lines) 
 {
-	int rho = threadIdx.y + blockIdx.y * blockDim.y;
-	int theta = threadIdx.x + blockIdx.x * blockDim.x;
+    int rho = blockIdx.y * blockDim.y + threadIdx.y;
+    int theta = blockIdx.x * blockDim.x + threadIdx.x;
 
-	if(rho >= accu_height || theta >= accu_width) return;
+    if (rho >= accu_height || theta >= accu_width) return;
 
-	uint32_t max;
+    uint32_t accuVote = accumulators[rho * accu_width + theta];
+    if (accuVote < threshold) return;
 
-	if(accumulators[(rho*accu_width) + theta] >= threshold)  
-	{  
-		//Is this point a local maxima (9x9)  
-		max = accumulators[(rho*accu_width) + theta]; 
-		for(int ii=-4;ii<=4;ii++)  
-		{  
-			for(int jj=-4;jj<=4;jj++)  
-			{  
-				if( (ii+rho>=0 && ii+rho<accu_height) && (jj+theta>=0 && jj+theta<accu_width) )  
-				{  
-					if( accumulators[((rho+ii)*accu_width) + (theta+jj)] > max )  
-					{
-						max = accumulators[((rho+ii)*accu_width) + (theta+jj)];
-					}  
-				}  
-			}  
-		}  
+    bool is_max = true;
+    for (int ii = -4; ii <= 4 && is_max; ii++) {
+        for (int jj = -4; jj <= 4; jj++) {
+            int r = rho + ii;
+            int t = theta + jj;
+            if (r >= 0 && r < accu_height && t >= 0 && t < accu_width) {
+                if (accumulators[r * accu_width + t] > accuVote) {
+                    is_max = false;
+                    break;
+                }
+            }
+        }
+    }
+    if (!is_max) return;
 
-		if(max == accumulators[(rho*accu_width) + theta]) //local maxima
-		{
-			int x1, y1, x2, y2;  
-			x1 = y1 = x2 = y2 = 0;  
+    int x1, y1, x2, y2;
+    if (theta >= 45 && theta <= 135) {
+        x1 = (theta > 90) ? width / 2 : 0;
+        x2 = (theta > 90) ? width : width * 2 / 5;
+        y1 = ((rho - accu_height / 2) - ((x1 - width / 2) * cos_table[theta])) / sin_table[theta] + (height / 2);
+        y2 = ((rho - accu_height / 2) - ((x2 - width / 2) * cos_table[theta])) / sin_table[theta] + (height / 2);
+    } else {
+        y1 = 0;
+        y2 = height;
+        x1 = ((rho - accu_height / 2) - ((y1 - height / 2) * sin_table[theta])) / cos_table[theta] + (width / 2);
+        x2 = ((rho - accu_height / 2) - ((y2 - height / 2) * sin_table[theta])) / cos_table[theta] + (width / 2);
+    }
 
-			if(theta >= 45 && theta <= 135)  
-			{
-				if (theta>90) {
-					//y = (r - x cos(t)) / sin(t)  
-					x1 = width/2;  
-					y1 = ((float)(rho-(accu_height/2)) - ((x1 - (width/2) ) * cos_table[theta])) / sin_table[theta] + (height / 2);
-					x2 = width;  
-					y2 = ((float)(rho-(accu_height/2)) - ((x2 - (width/2) ) * cos_table[theta])) / sin_table[theta] + (height / 2);  
-				} else {
-					//y = (r - x cos(t)) / sin(t)  
-					x1 = 0;  
-					y1 = ((float)(rho-(accu_height/2)) - ((x1 - (width/2) ) * cos_table[theta])) / sin_table[theta] + (height / 2);
-					x2 = width*2/5;  
-					y2 = ((float)(rho-(accu_height/2)) - ((x2 - (width/2) ) * cos_table[theta])) / sin_table[theta] + (height / 2); 
-				}
-			} else {
-				//x = (r - y sin(t)) / cos(t);  
-				y1 = 0;  
-				x1 = ((float)(rho-(accu_height/2)) - ((y1 - (height/2) ) * sin_table[theta])) / cos_table[theta] + (width / 2);  
-				y2 = height;  
-				x2 = ((float)(rho-(accu_height/2)) - ((y2 - (height/2) ) * sin_table[theta])) / cos_table[theta] + (width / 2);  
-			}
-			x1_lines[*lines] = x1;
-			y1_lines[*lines] = y1;
-			x2_lines[*lines] = x2;
-			y2_lines[*lines] = y2;
-			atomicAdd(lines, 1);
-		}
-	}
+    int index = atomicAdd(lines, 1);
+    x1_lines[index] = x1;
+    y1_lines[index] = y1;
+    x2_lines[index] = x2;
+    y2_lines[index] = y2;
 }
 
 void canny(uint8_t *im, uint8_t *image_out, int height, int width, float level) 
@@ -232,24 +270,30 @@ void canny(uint8_t *im, uint8_t *image_out, int height, int width, float level)
 	// En cuanto dejemos de usar la imagen, la liberamos de memoria
 	cudaFree(imTmp);
 
-	cudaStream_t gradientStream[2];
+	cudaStream_t streams[2];
 	for(int i = 0; i < 2; ++i)
-		cudaStreamCreate(&gradientStream[i]);
+		cudaStreamCreate(&streams[i]);
+	
+	dim3 multipleStreamsDimGrid(dimGrid.x/2, dimGrid.y/2);
 	
 	// Reservamos memoria para el resto de variables que vamos a utilizar
 	cudaMalloc((void**)&G, width * height * sizeof(float));
 	cudaMalloc((void**)&Gx, width * height * sizeof(float));
 	cudaMalloc((void**)&Gy, width * height * sizeof(float));
 	cudaMalloc((void**)&phi, width * height * sizeof(float));
-	gradientX<<<dimGrid, dimBlock, gradientStream[0]>>>(Gx, NR, width, height);
-	gradientY<<<dimGrid, dimBlock, gradientStream[1]>>>(Gy, NR, width, height);
-	cudaDeviceSynchronize();
+	gradientX<<<dimGrid, dimBlock, 0, streams[0]>>>(Gx, NR, width, height);
+	gradientY<<<dimGrid, dimBlock, 0, streams[1]>>>(Gy, NR, width, height);
+	cudaStreamSynchronize(streams[0]);
+	cudaStreamSynchronize(streams[1]);
 	
-	for(int i = 0; i < 2; ++i) 
-		cudaStreamDestroy(&gradientStream[i]);
-	gradient<<<dimGrid,dimBlock>>>(G, Gx, Gy, NR, phi, width, height);
-	cudaDeviceSynchronize();
+	gradient<<<dimGrid, dimBlock, 0, streams[0]>>>(G, Gx, Gy, width, height);
+	phiKernel<<<dimGrid, dimBlock, 0, streams[1]>>>(phi, Gx, Gy, width, height);
+	cudaStreamSynchronize(streams[0]);
+	cudaStreamSynchronize(streams[1]);
+	
 	// Liberamos las que ya no vayamos a utilizar
+	for(int i = 0; i < 2; ++i) 
+		cudaStreamDestroy(streams[i]);
 	cudaFree(NR);
 	cudaFree(Gx);
 	cudaFree(Gy);

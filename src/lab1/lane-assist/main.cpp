@@ -78,6 +78,11 @@ int main(int argc, char **argv)
 	int accu_height = hough_h * 2.0; // -rho -> +rho
 	int accu_width  = 180;
 	uint32_t *accum = (uint32_t*)malloc(accu_width*accu_height*sizeof(uint32_t));
+
+	float* fVar;
+	uint32_t* lVar;
+	uint8_t* cVar;
+	int* iVar;
 	
 	switch (argv[2][0]) {
 		case 'c':
@@ -90,17 +95,19 @@ int main(int argc, char **argv)
 			t1 = get_time();
 
 			if(verbose) 
-				printf("CPU Exection time %f ms.\n", t1-t0);
+				printf("CPU Exection time %f \xC2\xB5s.\n", t1-t0);
 			else
 				printf("%f\n", t1 - t0);
 			break;
 		case 'g':
+			loadVariables(&fVar, &cVar, &lVar, &iVar, width, height, accu_width, accu_height);
 			t0 = get_time();
-			lane_assist_GPU(im, height, width, imEdge, sin_table, cos_table, accum, accu_height, accu_width,
-				x1, y1, x2, y2, &nlines);
+			lane_assist_GPU(im, height, width, sin_table, cos_table, accu_height, accu_width,
+				x1, y1, x2, y2, &nlines, fVar, cVar, lVar, iVar);
 			t1 = get_time();
+			freeVariables(fVar, cVar, lVar, iVar);
 			if(verbose)
-				printf("GPU Exection time %f ms.\n", t1-t0);
+				printf("GPU Exection time %f \xC2\xB5s.\n", t1-t0);
 			else
 				printf("%f\n", t1 - t0);
 			break;

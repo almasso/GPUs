@@ -3,10 +3,10 @@
 make
 temp_file="./data/modified_data.csv"
 
-title="ExecutionTimeCPU,ExecutionTimeGPUDefault,ExecutionTimeGPUMultithread"
+title="ExecutionTimeCPU,ExecutionTimeGPUDefault,ExecutionTimeGPUMultithread,ExecutionTimeGPUOptimized"
 echo "$title" > "$temp_file"
 
-while IFS=, read -r valueCPU valueGPU
+while IFS=, read -r valueCPU valueGPU valueGPUMT
 do
     if [[ "$valueCPU" == "ExecutionTimeCPU" ]];
     then
@@ -17,7 +17,7 @@ do
 
     echo "$new_value"
 
-    echo "$valueCPU,$valueGPU,$new_value" >> "$temp_file"
+    echo "$valueCPU,$valueGPU,$valueGPUMT,$new_value" >> "$temp_file"
 done < ./data/data.csv
 
 mv "$temp_file" ./data/data.csv

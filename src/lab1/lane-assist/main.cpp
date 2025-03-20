@@ -122,7 +122,7 @@ int main(int argc, char **argv)
 	}
 
 	if(verbose)
-		for (int l=0; l<nlines; l++)
+		for (int l=0; l<std::min(nlines, 10); l++)
 			printf("(x1,y1)=(%d,%d) (x2,y2)=(%d,%d)\n", x1[l], y1[l], x2[l], y2[l]);
 
 	draw_lines(imtmp, width, height, x1, y1, x2, y2, nlines);

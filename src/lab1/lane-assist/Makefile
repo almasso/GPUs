@@ -1,8 +1,8 @@
 
 CXX = g++
 CC = gcc
-NVCC = /opt/nvidia/hpc_sdk/Linux_x86_64/2024/compilers/bin/nvcc
-#NVCC = /usr/local/cuda/bin/nvcc # He utilizado esta ruta de NVCC en mi ordenador en casa. Dejo por defecto activada la ruta de NVCC de los laboratorios.
+#NVCC = /opt/nvidia/hpc_sdk/Linux_x86_64/2024/compilers/bin/nvcc
+NVCC = /usr/local/cuda/bin/nvcc # He utilizado esta ruta de NVCC en mi ordenador en casa. Dejo por defecto activada la ruta de NVCC de los laboratorios.
 #NVCC = nvcc
 
 #OpenCV
@@ -10,11 +10,11 @@ CXX_OPENCV_FLAGS+=`pkg-config opencv --cflags`
 LD_OPENCV_FLAGS+=`pkg-config opencv --libs`
 
 
-CFLAGS=-O3 -I.
-CUDAFLAGS =-O3 -I. 
-CXXFLAGS=-O3 -I.
+CFLAGS=-O3 -g -I.
+CUDAFLAGS =-O3 -G -g -I. 
+CXXFLAGS=-O3 -g -I.
 
-LIBS =-lpng -lm -lcuda -lcudart
+LIBS =-lpng -lm -L/usr/local/cuda/lib64/ -lcudart
 
 SRC = png_io.o routinesCPU.o routinesGPU.o main.o
 	

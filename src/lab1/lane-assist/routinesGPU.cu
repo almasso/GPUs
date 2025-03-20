@@ -8,6 +8,7 @@
 #include "routinesGPU.h"
 
 #define BLOCK_SIZE 32
+#define PADDING 2
 
 __global__ void noiseReduction(uint8_t* im, float* NR, int width, int height) {
 	// Declaramos tx, ty y las posiciones globales de cada hilo
@@ -21,7 +22,7 @@ __global__ void noiseReduction(uint8_t* im, float* NR, int width, int height) {
 	// Declaramos una variable en memoria compartida, dejando espacio para el borde de la imagen (2 píxeles 
 	// por las 4 direcciones, por tanto + 4 en cada dimensión), y con un padding de 2 para desalinear la memoria (mejora 
 	// de accesos).
-    __shared__ float sNR[BLOCK_SIZE + 4][BLOCK_SIZE + 4 + 2];
+    __shared__ float sNR[BLOCK_SIZE + 4 + PADDING][BLOCK_SIZE + 4 + PADDING];
 
 	// Hacemos que el hilo (y,x) guarde en la posición (y + 2, x + 2), explotando el acceso coalescente.
     sNR[ty + 2][tx + 2] = im[i * width + j];
@@ -76,7 +77,7 @@ __global__ void gradientX(float* Gx, float* NR, int width, int height) {
 
 	if(i >= height || j >= width) return;
 
-	__shared__ float sGx[BLOCK_SIZE + 4][BLOCK_SIZE + 4 + 2];
+	__shared__ float sGx[BLOCK_SIZE + 4 + PADDING][BLOCK_SIZE + 4 + PADDING];
 
 	sGx[ty + 2][tx + 2] = NR[i * width + j];
 
@@ -122,7 +123,7 @@ __global__ void gradientY(float* Gy, float* NR, int width, int height) {
 
 	if(i >= height || j >= width) return;
 
-	__shared__ float sGy[BLOCK_SIZE + 4][BLOCK_SIZE + 4 + 2];
+	__shared__ float sGy[BLOCK_SIZE + 4 + PADDING][BLOCK_SIZE + 4 + PADDING];
 
 	sGy[ty + 2][tx + 2] = NR[i * width + j];
 

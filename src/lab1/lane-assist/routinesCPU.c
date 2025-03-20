@@ -240,7 +240,7 @@ void draw_lines(uint8_t *imgtmp, int width, int height, int *x1, int *y1, int *x
 	int x, y, wl, l;
 	int width_line=9;
 
-	for(l=0; l<nlines; l++)
+	for(l=0; l<fmin(nlines, 10); l++)
 		for(wl=-(width_line>>1); wl<=(width_line>>1); wl++)
 			for (x=x1[l]; x<x2[l]; x++)
 			{

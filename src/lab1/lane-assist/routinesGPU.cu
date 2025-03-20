@@ -28,12 +28,16 @@ __global__ void noiseReduction(uint8_t* im, float* NR, int width, int height) {
 
     // Cargamos los marcos de 2 de ancho que va a tener la matriz. Con esto nos aseguramos que todos los píxeles tienen disponible
 	// la superficie de 5x5 que necesitan para obtener el resultado final en NR
-    if (ty < 2) {
+    if (ty < 2 && i >= 2) {
         sNR[ty][tx + 2] = im[(i - 2) * width + j];
+	}
+	if (ty < 2 && i + BLOCK_SIZE < height) {
         sNR[ty + BLOCK_SIZE + 2][tx + 2] = im[(i + BLOCK_SIZE) * width + j];
     }
-    if (tx < 2) {
+    if (tx < 2 && j >= 2) {
         sNR[ty + 2][tx] = im[i * width + (j - 2)];
+	}
+	if (tx < 2 && j + BLOCK_SIZE < width) {
         sNR[ty + 2][tx + BLOCK_SIZE + 2] = im[i * width + (j + BLOCK_SIZE)];
     }
     __syncthreads();
@@ -76,14 +80,18 @@ __global__ void gradientX(float* Gx, float* NR, int width, int height) {
 
 	sGx[ty + 2][tx + 2] = NR[i * width + j];
 
-	if(ty < 2) {
-		sGx[ty][tx + 2] = NR[(i - 2) * width + j];
-		sGx[ty + BLOCK_SIZE + 2][tx + 2] = NR[(i + BLOCK_SIZE) * width + j];
+	if (ty < 2 && i >= 2) {
+        sGx[ty][tx + 2] = NR[(i - 2) * width + j];
 	}
-	if(tx < 2) {
-		sGx[ty+ 2][tx] = NR[i * width + (j - 2)];
-		sGx[ty+ 2][tx + BLOCK_SIZE + 2] = NR[i * width + (j + BLOCK_SIZE)];
+	if (ty < 2 && i + BLOCK_SIZE < height) {
+        sGx[ty + BLOCK_SIZE + 2][tx + 2] = NR[(i + BLOCK_SIZE) * width + j];
+    }
+    if (tx < 2 && j >= 2) {
+        sGx[ty + 2][tx] = NR[i * width + (j - 2)];
 	}
+	if (tx < 2 && j + BLOCK_SIZE < width) {
+        sGx[ty + 2][tx + BLOCK_SIZE + 2] = NR[i * width + (j + BLOCK_SIZE)];
+    }
 	__syncthreads();
 
 	// Esta matriz de pesos tiene una columna llena completamente de 0.
@@ -114,18 +122,22 @@ __global__ void gradientY(float* Gy, float* NR, int width, int height) {
 
 	if(i >= height || j >= width) return;
 
-	__shared__ float sGy[BLOCK_SIZE + 4][BLOCK_SIZE + 4];
+	__shared__ float sGy[BLOCK_SIZE + 4][BLOCK_SIZE + 4 + 2];
 
 	sGy[ty + 2][tx + 2] = NR[i * width + j];
 
-	if(ty < 2) {
-		sGy[ty][tx + 2] = NR[(i - 2) * width + j];
-		sGy[ty + BLOCK_SIZE + 2][tx + 2] = NR[(i + BLOCK_SIZE) * width + j];
+	if (ty < 2 && i >= 2) {
+        sGy[ty][tx + 2] = NR[(i - 2) * width + j];
 	}
-	if(tx < 2) {
-		sGy[ty+ 2][tx] = NR[i * width + (j - 2)];
-		sGy[ty+ 2][tx + BLOCK_SIZE + 2] = NR[i * width + (j + BLOCK_SIZE)];
+	if (ty < 2 && i + BLOCK_SIZE < height) {
+        sGy[ty + BLOCK_SIZE + 2][tx + 2] = NR[(i + BLOCK_SIZE) * width + j];
+    }
+    if (tx < 2 && j >= 2) {
+        sGy[ty + 2][tx] = NR[i * width + (j - 2)];
 	}
+	if (tx < 2 && j + BLOCK_SIZE < width) {
+        sGy[ty + 2][tx + BLOCK_SIZE + 2] = NR[i * width + (j + BLOCK_SIZE)];
+    }
 	__syncthreads();
 
 	// Esta matriz de pesos tiene una fila llena completamente de 0.

@@ -79,10 +79,13 @@ int main(int argc, char **argv)
 	int accu_width  = 180;
 	uint32_t *accum = (uint32_t*)malloc(accu_width*accu_height*sizeof(uint32_t));
 
-	float* fVar;
-	uint32_t* lVar;
-	uint8_t* cVar;
-	int* iVar;
+	// Variables para la llamada de GPU
+	// Con estas cuatro variables tendremos suficiente y solo tendremos que llamar 
+	// 4 veces a cudaMalloc y cudaFree, aumentando bastante el rendimiento
+	float* fVar = nullptr; // Almacenará todas las variables de tipo float que se usen en los kernels
+	uint32_t* lVar = nullptr; // Almacenará todas las variables de tipo uint32_t que se usen en los kernels
+	uint8_t* cVar = nullptr; // Almacenará todas las variables de tipo uint8_t que se usen en los kernels
+	int* iVar = nullptr; // Almacenará todas las variables de tipo int (posiblemente, uint16_t) que se usen en los kernels
 	
 	switch (argv[2][0]) {
 		case 'c':
@@ -100,11 +103,14 @@ int main(int argc, char **argv)
 				printf("%f\n", t1 - t0);
 			break;
 		case 'g':
+			// Primero cargamos las variables, para que el tiempo de carga no se tenga en cuenta en el tiempo que tarda el kernel
 			loadVariables(&fVar, &cVar, &lVar, &iVar, width, height, accu_width, accu_height);
 			t0 = get_time();
+			// Llamada a lane_assist_GPU después de inicializar las variables
 			lane_assist_GPU(im, height, width, sin_table, cos_table, accu_height, accu_width,
 				x1, y1, x2, y2, &nlines, fVar, cVar, lVar, iVar);
 			t1 = get_time();
+			// Por último, liberamos las variables, para que tampoco se tenga su tiempo en cuenta en el tiempo de ejecución del kernel
 			freeVariables(fVar, cVar, lVar, iVar);
 			if(verbose)
 				printf("GPU Exection time %f \xC2\xB5s.\n", t1-t0);

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Este script bash sirve para modificar el .csv con los datos de la ejecución.
+
 make
 temp_file="./data/modified_data.csv"
 

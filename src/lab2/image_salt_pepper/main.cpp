@@ -264,6 +264,8 @@ int main(int argc, char **argv) {
 	RGB2BW(imageBW, imageUCHAR, width, height);
 
 
+	float* window = malloc_shared<float>(MAX_WINDOW_SIZE, Q);
+
 	//////////////////
 	// Remove noise //
 	//////////////////
@@ -278,7 +280,7 @@ int main(int argc, char **argv) {
 		case 'c':
 		case 'g':
 			t0 = get_time();
-			remove_noise_SYCL(Q, imageBW, imageOUT,
+			remove_noise_SYCL(Q, window, imageBW, imageOUT,
 				0.1, 3, height, width);
 			t1 = get_time();
 			printf("SYCL Exection time %f ms.\n", t1-t0);
@@ -288,6 +290,8 @@ int main(int argc, char **argv) {
 
 
 	}
+
+	free(window, Q);
 
 
 	// WRITE IMAGE

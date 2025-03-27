@@ -150,6 +150,7 @@ real_type GSimulation :: updateParticles(int n, real_type dt)
 	      particles[i].vel[0]*particles[i].vel[0] + 
                particles[i].vel[1]*particles[i].vel[1] +
                particles[i].vel[2]*particles[i].vel[2]); //7flops
+      energy *= .5f;
    }
    return energy;
 }

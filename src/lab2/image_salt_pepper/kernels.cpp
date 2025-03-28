@@ -21,22 +21,24 @@ void _buble_sort(float array[], int size)
 			}
 }
 
-void remove_noise_SYCL(sycl::queue Q, float* window, float *im, float *image_out, 
+void remove_noise_SYCL(sycl::queue Q, float *im, float *image_out, 
 	float thredshold, int window_size,
 	int height, int width)
 {
-	
 	int ws2 = (window_size-1)>>1; 
 
 	Q.submit([&](handler &h) {
-		h.parallel_for(range<2>(width - ws2, height - ws2), [=](id<2> pixel) {
+		h.parallel_for(range<2>(height - ws2, width - ws2), [=](id<2> pixel) {
 			float median;
+			float window[MAX_WINDOW_SIZE];
 			int i = pixel[0], j = pixel[1], ii, jj;
 
-			for (ii =-ws2; ii<=ws2; ii++)
+			if(i >= ws2 && j >= ws2) {
+				for (ii =-ws2; ii<=ws2; ii++)
 				for (jj =-ws2; jj<=ws2; jj++)
 					window[(ii+ws2)*window_size + jj+ws2] = im[(i+ii)*width + j+jj];
 
+			// SORT
 			_buble_sort(window, window_size*window_size);
 			median = window[(window_size*window_size-1)>>1];
 
@@ -44,6 +46,7 @@ void remove_noise_SYCL(sycl::queue Q, float* window, float *im, float *image_out
 				image_out[i*width + j] = im[i*width+j];
 			else
 				image_out[i*width + j] = median;
+			}
 
 		});
 	}).wait();

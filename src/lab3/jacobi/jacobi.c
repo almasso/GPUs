@@ -13,6 +13,11 @@ double *Anew;
 
 int main(int argc, char** argv)
 {
+#ifdef _OPENACC
+	acc_init(acc_device_not_host);
+	printf(" Compiling with OpenACC support \n");
+#endif 
+
 	const int iter_max = 1000;
 	int n, m;
 
@@ -52,7 +57,7 @@ int main(int argc, char** argv)
 
 	int iter = 0;
 
-#pragma acc ...
+#pragma acc data copyin(Anew[0:n*m]) copy(A[0:n*m])
 {
 	StartTimer();
 
@@ -60,6 +65,7 @@ int main(int argc, char** argv)
 	{
 		error = 0.0;
 
+		#pragma acc kernels loop independent collapse(2) reduction(max:error)
 		for( int j = 1; j < n-1; j++)
 		{
 			for( int i = 1; i < m-1; i++ )
@@ -70,6 +76,7 @@ int main(int argc, char** argv)
 			}
 		}
 
+		#pragma acc kernels loop independent collapse(2)
 		for( int j = 1; j < n-1; j++)
 		{
 			for( int i = 1; i < m-1; i++ )
@@ -86,4 +93,8 @@ int main(int argc, char** argv)
 }
 
 	printf(" total: %f s\n", runtime / 1000);
+
+#ifdef _OPENACC
+     acc_shutdown(acc_device_not_host);
+#endif 
 }

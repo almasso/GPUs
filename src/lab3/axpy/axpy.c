@@ -58,8 +58,7 @@ int main (int argc, const char *argv[])
 	}
 	// SAXPY
 	t0 = get_time();
-	#pragma acc ....
-	#pragma acc .... 
+	#pragma acc kernels loop independent copy(y_acc[0:n]) copyin(x_acc[0:n])
 	for(i=0; i<n; i++)
 		y_acc[i] = a*x_acc[i] + y_acc[i];
 

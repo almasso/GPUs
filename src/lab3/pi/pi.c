@@ -34,7 +34,8 @@ int main(int argc, char **argv)
 
 	t0 = get_time();
 	area= 0.0;
-#pragma acc ...
+
+	#pragma acc kernels loop independent reduction(+:area)
 	for(i=1; i<n; i++) {
 		x = (i+0.5)/n;
 		area += 4.0/(1.0 + x*x);

@@ -7,7 +7,7 @@ CFLAGS=-O3  -std=c99
 
 LIB = -lm -lrt
 
-PGCC=pgcc -Minfo -fast -acc -ta=nvidia
+PGCC=nvc -Minfo -fast -acc -ta=nvidia
 
 NAME=jacobi
 

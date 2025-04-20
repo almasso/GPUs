@@ -24,81 +24,6 @@
 
 using  namespace  cl::sycl;
 
-#pragma region reducciones
-constexpr int warm_up_token = -1;
-
-class Timer {
-public:
-  Timer() : start_(std::chrono::steady_clock::now()) {}
-
-  double Elapsed() {
-    auto now = std::chrono::steady_clock::now();
-    return std::chrono::duration_cast<Duration>(now - start_).count();
-  }
-
-private:
-  using Duration = std::chrono::duration<double>;
-  std::chrono::steady_clock::time_point start_;
-};
-
-void flush_cache(sycl::queue &q, sycl::buffer<real_type> &flush_buf) {
-  auto flush_size = flush_buf.get_size()/sizeof(real_type);
-  auto ev = q.submit([&](auto &h) {
-    sycl::accessor flush_acc(flush_buf, h, sycl::write_only, sycl::noinit);
-    h.parallel_for(flush_size, [=](auto index) { flush_acc[index] = 1; });
-  });
-  ev.wait_and_throw();
-}
-
-// reductionAtomics1 de
-// https://www.intel.com/content/www/us/en/developer/articles/technical/analyzing-performance-reduction-operations-dpc.html#gs.pplz86
-void reductionAtomics1(sycl::queue &q, sycl::buffer<real_type> inbuf,
-                     sycl::buffer<real_type> flush_buf, real_type &res, int iter) {
-  const size_t data_size = inbuf.get_size()/sizeof(real_type);
-
-  sycl::buffer<real_type> sum_buf(&res, 1);
-
-  double elapsed = 0;
-  for (int i = warm_up_token; i < iter; i++) {
-    q.submit([&](auto &h) {
-      sycl::accessor sum_acc(sum_buf, h, sycl::write_only, sycl::noinit);
-
-      h.parallel_for(1, [=](auto index) {
-        sum_acc[0] = 0;
-      });
-    });
-
-    flush_cache(q, flush_buf);
-    Timer timer;
-    // reductionAtomics1 main begin
-    q.submit([&](auto &h) {
-      sycl::accessor buf_acc(inbuf, h, sycl::read_only);
-      sycl::accessor sum_acc(sum_buf, h, sycl::write_only, sycl::noinit);
-
-      h.parallel_for(data_size, [=](auto index) {
-        size_t glob_id = index[0];
-        auto v =
-            sycl::atomic_ref<real_type, sycl::memory_order::acq_rel,
-                                     sycl::memory_scope::device,
-                                     sycl::access::address_space::global_space>(
-                sum_acc[0]);
-        v.fetch_add(buf_acc[glob_id]);
-      });
-      // reductionAtomics1 main end
-    });
-    q.wait();
-    {
-      // ensure limited life-time of host accessor since it blocks the queue
-      sycl::host_accessor h_acc(sum_buf);
-      res = h_acc[0];
-    }
-    // do not measure time of warm-up iteration to exclude JIT compilation time
-    elapsed += (iter == warm_up_token) ? 0 : timer.Elapsed();
-  }
-} // end reductionAtomics1
-
-#pragma endregion
-
 GSimulation :: GSimulation()
 {
   std::cout << "===============================" << std::endl;
@@ -215,27 +140,32 @@ void GSimulation::get_acceleration_SYCL(int n) {
 
     _syclQueue.submit([&](handler &h) {
         ParticleAoS* local_particles = particles;
-        h.parallel_for(range<2>(n, n), [=](id<2> item) {
-            int i = item[0], j = item[1];
-            real_type ax_i = local_particles[i].acc[0];
-            real_type ay_i = local_particles[i].acc[1];
-            real_type az_i = local_particles[i].acc[2];
-            real_type distanceSqr = 0.0f;
-            real_type distanceInv = 0.0f;
-            real_type dx = local_particles[j].pos[0] - local_particles[i].pos[0];
-            real_type dy = local_particles[j].pos[1] - local_particles[i].pos[1];
-            real_type dz = local_particles[j].pos[2] - local_particles[i].pos[2];
-            distanceSqr = dx * dx + dy * dy + dz * dz + softeningSquared;
-            distanceInv = 1.0f / sqrtf(distanceSqr);
-            ax_i += dx * G * local_particles[j].mass * distanceInv * distanceInv * distanceInv;
-            ay_i += dy * G * local_particles[j].mass * distanceInv * distanceInv * distanceInv;
-            az_i += dz * G * local_particles[j].mass * distanceInv * distanceInv * distanceInv;
+        h.parallel_for(n, [=](id<1> item) {
+            int i = item[0];
+            real_type ax_i = 0.0f, ay_i = 0.0f, az_i = 0.0f;
+
+            for (int j = 0; j < n; j++) {
+                real_type dx = local_particles[j].pos[0] - local_particles[i].pos[0];
+                real_type dy = local_particles[j].pos[1] - local_particles[i].pos[1];
+                real_type dz = local_particles[j].pos[2] - local_particles[i].pos[2];
+
+                real_type distanceSqr = dx * dx + dy * dy + dz * dz + softeningSquared;
+                real_type distanceInv = 1.0f / sqrtf(distanceSqr);
+
+                real_type force = G * local_particles[j].mass * distanceInv * distanceInv * distanceInv;
+
+                ax_i += dx * force;
+                ay_i += dy * force;
+                az_i += dz * force;
+            }
+
             local_particles[i].acc[0] = ax_i;
             local_particles[i].acc[1] = ay_i;
             local_particles[i].acc[2] = az_i;
         });
     }).wait();
 }
+
 
 real_type GSimulation :: updateParticles(int n, real_type dt)
 {
@@ -265,7 +195,9 @@ real_type GSimulation :: updateParticles(int n, real_type dt)
 }
 
 real_type GSimulation::updateParticles_SYCL(int n, real_type dt) {
-    sycl::buffer<real_type> energyBuffer(n);
+    real_type ogEnergy = 0.0f;
+    sycl::buffer<real_type> energyBuffer(&ogEnergy, 1);
+
     _syclQueue.submit([&](handler &h) {
         auto energy = energyBuffer.get_access<sycl::access::mode::write>(h);
         ParticleAoS* local_particles = particles;
@@ -282,24 +214,19 @@ real_type GSimulation::updateParticles_SYCL(int n, real_type dt) {
             local_particles[i].acc[1] = 0.;
             local_particles[i].acc[2] = 0.;
 
-            real_type v2 =  local_particles[i].vel[0]*local_particles[i].vel[0] +
+            real_type v2 = local_particles[i].vel[0]*local_particles[i].vel[0] +
                     local_particles[i].vel[1]*local_particles[i].vel[1] +
                     local_particles[i].vel[2]*local_particles[i].vel[2];
-            energy[i] = (0.5f * v2 * local_particles[i].mass);
+            real_type tmpEnerg = (0.5f * v2 * local_particles[i].mass);
+
+            sycl::atomic_ref<real_type, sycl::memory_order::relaxed, sycl::memory_scope::device,
+            sycl::access::address_space::global_space> atEn(energy[0]);
+            atEn.fetch_add(tmpEnerg);
         });
     }).wait();
 
-    real_type resultEnergy = 0.0f;
-    sycl::buffer<real_type> flush(n);
-    if(_syclQueue.get_device().is_gpu()) reductionAtomics1(_syclQueue, energyBuffer, flush, resultEnergy, 16);
-    else {
-        auto energy = energyBuffer.get_access<sycl::access::mode::read>();
-        for(int i = 0; i < n; ++i) {
-            resultEnergy += energy[i];
-        }
-    }
-
-    return resultEnergy;
+    auto energy = energyBuffer.get_access<sycl::access::mode::read>();
+    return energy[0];
 }
 
 void GSimulation :: start(bool useSycl)

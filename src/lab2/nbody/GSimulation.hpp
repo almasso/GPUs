@@ -47,7 +47,13 @@ public:
   void start(bool useSycl = false);
 
 private:
+#ifdef SoA
+    void* rawMem;
+    ParticleSoA* particles;
+#else
   ParticleAoS *particles;
+#endif
+
 
   sycl::queue _syclQueue;
 

@@ -120,6 +120,8 @@ float *RGB2BW(unsigned char *imageUCHAR, int width, int height)
 
 	unsigned char R, B, G;
 
+#pragma acc data copyin(imageUCHAR[0:width*height]) copyout(imageBW[0:width*height])
+#pragma acc kernels loop independent collapse(2)
 	for (i=0; i<height; i++)
 		for (j=0; j<width; j++)
 		{
@@ -151,11 +153,12 @@ void border(float *im, float *image_out,
 	filt[3] = -1.0; filt[4] =  4.0; filt[5] = -1.0;
 	filt[6] =  0.0; filt[7] = -1.0; filt[8] =  0.0;
 
-#pragma acc ...
+#pragma acc data copyin(im[0:height*width]) copyin(filt[0:height*width]) copyout(image_out[0:height*width])
 {
 
 	t0 = get_time();
 
+	#pragma acc kernels loop independent collapse(2) reduction(+:tmp)
 	for(i=ws2; i<height-ws2; i++)
 	{
 		for(j=ws2; j<width-ws2; j++)

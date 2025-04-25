@@ -4,6 +4,9 @@
 
 #include <sys/time.h>
 #include <sys/resource.h>
+#ifdef _OPENACC
+#include <openacc.h>
+#endif
 
 double get_time(){
 	static struct timeval 	tv0;
@@ -33,33 +36,37 @@ void randomizeBodies(body *data, int n) {
 }
 
 void bodyForce(body *p, float dt, int n) {
+	#pragma acc data copy(p[0:n])
+	{
+		#pragma acc kernels loop independent
+		for (int i = 0; i < n; i++) { 
+			float Fx = 0.0f; float Fy = 0.0f; float Fz = 0.0f;
+			#pragma acc loop seq
+			for (int j = 0; j < n; j++) {
+				if (i!=j) {
+					float dx = p[j].x - p[i].x;
+					float dy = p[j].y - p[i].y;
+					float dz = p[j].z - p[i].z;
+					float distSqr = dx*dx + dy*dy + dz*dz;
+					float invDist = 1.0f / sqrtf(distSqr);
+					float invDist3 = invDist * invDist * invDist;
 
-	for (int i = 0; i < n; i++) { 
-		float Fx = 0.0f; float Fy = 0.0f; float Fz = 0.0f;
+					float G = 6.674e-11;
+					float g_masses = G * p[j].m * p[i].m;
 
-		for (int j = 0; j < n; j++) {
-			if (i!=j) {
-				float dx = p[j].x - p[i].x;
-				float dy = p[j].y - p[i].y;
-				float dz = p[j].z - p[i].z;
-				float distSqr = dx*dx + dy*dy + dz*dz;
-				float invDist = 1.0f / sqrtf(distSqr);
-				float invDist3 = invDist * invDist * invDist;
-
-				float G = 6.674e-11;
-				float g_masses = G * p[j].m * p[i].m;
-
-				Fx += g_masses * dx * invDist3; 
-				Fy += g_masses * dy * invDist3; 
-				Fz += g_masses * dz * invDist3;
+					Fx += g_masses * dx * invDist3; 
+					Fy += g_masses * dy * invDist3; 
+					Fz += g_masses * dz * invDist3;
+				}
 			}
-		}
 
-		p[i].vx += dt*Fx/p[i].m; p[i].vy += dt*Fy/p[i].m; p[i].vz += dt*Fz/p[i].m;
+			p[i].vx += dt*Fx/p[i].m; p[i].vy += dt*Fy/p[i].m; p[i].vz += dt*Fz/p[i].m;
+		}
 	}
 }
 
 void integrate(body *p, float dt, int n){
+	#pragma acc kernels loop pcopy(p[0:n])
 	for (int i = 0 ; i < n; i++) {
 		p[i].x += p[i].vx*dt;
 		p[i].y += p[i].vy*dt;
@@ -74,6 +81,11 @@ int main(const int argc, const char** argv) {
 
 	const float dt = 0.01f; // time step
 	const int nIters = 100;  // simulation iterations
+
+#ifdef _OPENACC
+     acc_init(acc_device_not_host);
+     printf(" Compiling with OpenACC support \n");
+#endif 
 
 	body *p = (body*)malloc(nBodies*sizeof(body));
 
@@ -90,4 +102,8 @@ int main(const int argc, const char** argv) {
 	printf("%d Bodies with %d iterations: %0.3f Millions Interactions/second\n", nBodies, nIters, 1e-6 * nBodies * nBodies / totalTime);
 
 	free(p);
+
+#ifdef _OPENACC
+     acc_shutdown(acc_device_not_host);
+#endif 	
 }

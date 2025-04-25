@@ -1,6 +1,4 @@
 
-
-
 CC=gcc
 
 CFLAGS=-O3 -lm -lrt 

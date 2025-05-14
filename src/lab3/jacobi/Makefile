@@ -7,7 +7,8 @@ CFLAGS=-O3  -std=c99
 
 LIB = -lm -lrt
 
-PGCC=nvc -Minfo -fast -acc -ta=nvidia
+#PGCC=nvc -Minfo -fast -acc -ta=nvidia
+PGCC=/opt/nvidia/hpc_sdk/Linux_x86_64/24.3/compilers/bin/nvc -fast -acc -gpu=managed -Minfo=accel
 
 NAME=jacobi
 

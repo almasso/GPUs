@@ -5,6 +5,9 @@
 #include <string.h>
 #include <math.h>
 #include <sys/time.h>
+#ifdef _OPENACC
+#include <openacc.h>
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 // declaration, forward
@@ -198,6 +201,11 @@ void runTest( int argc, char** argv)
 	int blosum;
 
 	double t0, t1;
+
+#ifdef _OPENACC
+     acc_init(acc_device_not_host);
+     printf(" Compiling with OpenACC support \n");
+#endif 
 	
     
 	// the lengths of the two sequences should be able to divided by 16.
@@ -273,9 +281,14 @@ void runTest( int argc, char** argv)
 	/********************/
 	/* Needleman-Wunsch */
 	/********************/
+
+#pragma acc data copyin(blosum62[0:24*24]) copyin(input1[0:max_cols]) copyin(input2[0:max_rows]) copy(nw_matrix[0:max_rows*max_cols])
+{
 	t0 = gettime();
 	/* Compute top-left matrix */
+	#pragma acc kernels loop independent
 	for( int i = 0 ; i < max_rows-2 ; i++){
+		#pragma acc loop seq
 		for( idx = 0 ; idx <= i ; idx++){
 			index = (idx + 1) * max_cols + (i + 1 - idx);
 
@@ -295,7 +308,9 @@ void runTest( int argc, char** argv)
 	}
 
 	/* Compute diagonals matrix */
+	#pragma acc kernels loop independent
 	for( int i = max_rows-2; i < max_cols-2 ; i++){
+		#pragma acc loop seq
 		for( idx = 0 ; idx <= max_rows-2; idx++){
 			index = (idx + 1) * max_cols + (i + 1 - idx);
 
@@ -315,7 +330,9 @@ void runTest( int argc, char** argv)
 	}
 
 	/* Compute bottom-right matrix */
+	#pragma acc kernels loop independent
 	for( int i = max_rows-2; i >= 0 ; i--){
+		#pragma acc loop seq
 		for( idx = 0 ; idx <= i; idx++){
 			index =  ( idx+max_rows-1-i ) * max_cols + max_cols-idx-1 ;
 
@@ -335,6 +352,7 @@ void runTest( int argc, char** argv)
 	}
 
 	t1 = gettime();
+}
 
 	printf("\nPerformance %f GCUPS\n", 1.0e-9*((max_rows-1)*(max_cols-1)/(t1-t0)));
 	
@@ -432,5 +450,9 @@ void runTest( int argc, char** argv)
 	free(input2);
 	free(tmp1);
 	free(tmp2);
+
+#ifdef _OPENACC
+     acc_shutdown(acc_device_not_host);
+#endif 	
 
 }
